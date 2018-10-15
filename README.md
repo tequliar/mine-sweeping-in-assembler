@@ -1,2 +1,3 @@
 # mine-sweeping-in-assembler
-A simple mine sweeping game developed by assembler.
+
+This is a simple mine sweeping game developed by assembler.
