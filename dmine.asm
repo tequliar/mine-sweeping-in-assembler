@@ -96,19 +96,17 @@ initChessBox proc
 setB:
    mov bx,0
    call rand           ;生成一个随机数
-   ;cmp bl,lastNum      ;比较新随机数与上一随机数
-   ;je setB             ;相等，重新获取随机数
-   cmp bx,sumGrid
-   ja setB
+   cmp bx,sumGrid				;生成的随机数与棋盘总格数比较
+   ja setB							;相等，重新获取随机数
    mov lastNum,bl      ;不相等，将新随机数赋值给上一随机数
    add bx,dx           ;偏移地址+随机数=随机数放置的地址
    mov di,bx
-   cmp byte ptr[di],2ah
-   jz setB
-   mov byte ptr[di],2ah
-   dec cl
+   cmp byte ptr[di],2ah		;判断放雷的位置是否已经初始好
+   jz setB								;随机数重复了，需要再重新生成一个
+   mov byte ptr[di],2ah		;该位置没有放雷，可以放！
+   dec cl									;雷的数量减1，完成一个雷
    jnz setB
-   call count   
+   call count  						;统计   
 ;换行
    mov dl,0ah
    mov ah,2
@@ -122,10 +120,33 @@ setB:
    pop cx
    pop bx
    pop ax
-   ;call output
    call initque
    ret
 initChessBox endp
+
+;生成随机数的函数
+rand proc
+   push dx
+   push cx
+   push ax
+   mov bl,lastRand          ;取上次随机数
+   mov ah,0
+   int 1ah                  ; 读时钟计数器值cx:dx，dx放低16位
+;获得更加随机的数
+   mov bl,dh
+   xor bl,dl
+   mov lastRand,bl
+   xor bl,ch
+   add cx,306ch   
+   xor cx,dx
+R10:
+   add bl,cl
+   loop R10
+   pop ax
+   pop cx
+   pop dx
+   ret
+rand endp                    ;随机函数结束
 
 changetoD proc            ;将asc码转化为二位十进制数
       mov bl,0
@@ -503,29 +524,6 @@ begin:
 initque endp
  
  
-;生成随机数的函数
-rand proc
-   push dx
-   push cx
-   push ax
-   mov bl,lastRand          ;取上次随机数
-   mov ah,0
-   int 1ah                  ; 获取时钟计数cx:dx
-;获得更加随机的数
-   mov bl,dh
-   xor bl,dl
-   mov lastRand,bl
-   xor bl,ch
-   add cx,306ch   
-   xor cx,dx
-R10:
-   add bl,cl
-   loop R10
-   pop ax
-   pop cx
-   pop dx
-   ret
-rand endp                    ;随机函数结束
 
 
 ;输出函数
