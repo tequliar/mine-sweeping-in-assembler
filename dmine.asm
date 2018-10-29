@@ -96,17 +96,19 @@ initChessBox proc
 setB:
    mov bx,0
    call rand           ;生成一个随机数
-   cmp bx,sumGrid				;生成的随机数与棋盘总格数比较
-   ja setB							;相等，重新获取随机数
+   ;cmp bl,lastNum      ;比较新随机数与上一随机数
+   ;je setB             ;相等，重新获取随机数
+   cmp bx,sumGrid
+   ja setB
    mov lastNum,bl      ;不相等，将新随机数赋值给上一随机数
    add bx,dx           ;偏移地址+随机数=随机数放置的地址
    mov di,bx
-   cmp byte ptr[di],2ah		;判断放雷的位置是否已经初始好
-   jz setB								;随机数重复了，需要再重新生成一个
-   mov byte ptr[di],2ah		;该位置没有放雷，可以放！
-   dec cl									;雷的数量减1，完成一个雷
+   cmp byte ptr[di],2ah
+   jz setB
+   mov byte ptr[di],2ah
+   dec cl
    jnz setB
-   call count  						;统计   
+   call count   
 ;换行
    mov dl,0ah
    mov ah,2
@@ -120,33 +122,10 @@ setB:
    pop cx
    pop bx
    pop ax
+   ;call output
    call initque
    ret
 initChessBox endp
-
-;生成随机数的函数
-rand proc
-   push dx
-   push cx
-   push ax
-   mov bl,lastRand          ;取上次随机数
-   mov ah,0
-   int 1ah                  ; 读时钟计数器值cx:dx，dx放低16位
-;获得更加随机的数
-   mov bl,dh
-   xor bl,dl
-   mov lastRand,bl
-   xor bl,ch
-   add cx,306ch   
-   xor cx,dx
-R10:
-   add bl,cl
-   loop R10
-   pop ax
-   pop cx
-   pop dx
-   ret
-rand endp                    ;随机函数结束
 
 changetoD proc            ;将asc码转化为二位十进制数
       mov bl,0
@@ -328,140 +307,140 @@ nextl:inc [mark]
 
 nexti:jmp markWin    ;标记完地雷后跳转到标地雷路子的是否胜利语句
 
-;扫雷，先判断是否为雷，如果是雷则游戏结束，不是雷则尽可能多得显示无雷区
-activate:mov al,multiR
-		mov bl,dim
-		mul bl
-		mov bl,multiC
-		mov bh,0
-		add ax,bx     ;计算得到当前具体位置
-		push ax
-		lea bx,mine
-		pop ax
-        PUSH AX
-		and ax,00ffh
-		xlat
-        PUSH AX
-		cmp al,'*'
-		je lose
-        CMP AL,'0'
-		JE SHOW
-        POP AX
-        POP BX
-		mov dh,mine[bx]
-		cmp dh,showMine[bx]
-		jz same
-		INC [step]
-same:   MOV showMine[BX],AL
-        call output1  	
+activate:
+		MOV AL,multiR  			;扫雷，先判断是否为雷，如果是雷则游戏结束，不是雷则智能帮扫，尽可能多的显示非雷区域
+		MOV BL,dim				;棋盘长度放入bl
+		MUL BL					;AX<-AX*BL
+		MOV BL,multiC			;bl<-纵坐标
+		MOV BH,0		
+		ADD AX,BX     			;计算得到当前具体位置
+		PUSH AX
+		LEA BX,mine		
+		POP AX
+		PUSH AX
+		AND AX,00FFH
+		XLAT
+		PUSH AX
+		CMP AL,'*'				;判断是否为雷
+		JE lose					;如果踩到雷
+		CMP AL,'0'				;如果为0
+		JE SHOW					;跳转至SHOW
+		POP AX			
+		POP BX
+		MOV DH,mine[BX]			;把雷放入DH
+		CMP DH,showMine[BX]		;与已经显示的雷比较
+		JZ same					;如果相同
+		INC [step]				;若不同，step++
+		
+same:	MOV showMine[BX],AL		;并将AL加入雷显示区域
+		CALL output1  			;调用output1
 
-lose:lea dx,STRLOSE
-		mov ah,09h
-		int 21h
-		mov ah,4ch  ;游戏结束，返回DOS
-		int 21h
+lose:	LEA DX,STRLOSE
+		MOV AH,09H
+		INT 21H					;输出失败提示
+		MOV AH,4CH  			;游戏结束，返回DOS
+		INT 21H
 
-SHOW:
-      INC [step]
-      POP AX
-      POP BX
-      MOV showMine[BX],AL
-      MOV DL,1;循环次数初始化为1
-	  JMP PS
+SHOW:	INC [step]				;step++
+		POP AX		
+		POP BX
+		MOV showMine[BX],AL		;并将AL加入雷显示区域
+		MOV DL,1				;循环次数初始化为1
+		JMP PS
     
-PX: POP BX;栈顶出栈
-    POP AX 
-	MOV DL,1;循环次数初始化为1
+PX:		POP BX					;栈顶出栈
+		POP AX 					;栈顶出栈
+		MOV DL,1				;循环次数初始化为1
 	
-PP:  POP BX;栈顶出栈
-     POP AX
-	 CMP AL,[multiA]
-	 JNE PW
-	 CMP BL,[multiB]
-	 JE  EXITO;回到初始位置
-	 JMP PW
-EXITO:CMP DL,5
-     JB PW
-MM: CALL output1;在初始位置的搜索超过四次，输出雷区
-PW:	 PUSH AX;当前位置入栈
-	 PUSH BX
-	 MOV multiR,AL
-	 MOV multiC,BL
-	 JMP P1
+PP:		POP BX					;栈顶出栈
+		POP AX					;栈顶出栈
+		CMP AL,[multiA]
+		JNE PW
+		CMP BL,[multiB]
+		JE  EXITO				;回退到初始位置
+		JMP PW
+		
+EXITO:	CMP DL,5				;判断是否超过5次
+		JB PW
 	 
- PS:  MOV AL,multiR
-      MOV BL,multiC
-      PUSH AX;当前位置入栈
-      PUSH BX;
-	  MOV DL,1;循环次数初始化为1
- P1: INC DL;循环数加一，
-     CMP DL,2;比较循环数与2
-     JA  P2;若大于，跳至P2
-     DEC [multiR];当前点的横坐标减1
-	 ;MOV multiR,AL
-     JMP NEXTO;跳至NEXTO
+MM:		CALL output1			;在初始位置的搜索超过四次，输出雷区
 
-P2:  CMP DL,3;比较循环数与3
-     JA  P3;若大于，跳至P3
-     INC [multiC];当前点的纵坐标加1
-	 ;MOV multiC,BL
-     JMP NEXTO;跳至NEXTO
+PW:		PUSH AX					;当前位置入栈
+		PUSH BX
+		MOV multiR,AL
+		MOV multiC,BL
+		JMP P1
+	 
+PS:		MOV AL,multiR			;AL<-multiR
+		MOV BL,multiC			;BL<-multiC
+		PUSH AX					;当前位置入栈
+		PUSH BX;
+		MOV DL,1				;循环次数初始化为1
+		
+P1:		INC DL					;循环数加一，
+		CMP DL,2				;比较循环数与2
+		JA  P2					;若大于，跳至P2
+		DEC [multiR]			;当前点的横坐标减1
+		JMP NEXTO				;跳至NEXTO
 
-P3:  CMP DL,4;比较循环数与4
-     JA  P4;若大于，跳至P4
-     INC [multiR];当前点的横坐标加1
-	 ;MOV multiR,AL
-     JMP NEXTO;跳至NEXTO
+P2:		CMP DL,3				;比较循环数与3
+		JA  P3					;若大于，跳至P3
+		INC [multiC]			;当前点的纵坐标加1
+		JMP NEXTO				;跳至NEXTO
 
-P4:  CMP DL,5;比较循环数与5
-     JA  PX;若大于，跳至PX
-     DEC [multiC];当前点的纵坐标减1
-	 ;MOV multiC,BL
-     JMP NEXTO;跳至NEXTO
+P3:		CMP DL,4				;比较循环数与4
+		JA  P4					;若大于，跳至P4
+		INC [multiR]			;当前点的横坐标加1
+		JMP NEXTO				;跳至NEXTO
+
+P4:		CMP DL,5				;比较循环数与5
+		JA  PX					;若大于，跳至PX
+		DEC [multiC]			;当前点的纵坐标减1
+		JMP NEXTO				;跳至NEXTO
+	 
 NEXTO:
-;判断坐标是否合法
-     MOV CH,dim
-     CMP [multiR],0;将横坐标与0比较
-     JB PP;小于，跳至PP，继续探索下一个结点
-     CMP [multiR],CH;与棋盘规格比较
-     JNB PP;大于跳至PP，继续探索下一个结点
-     CMP [multiC],0;将纵坐标与0比较
-     JB PP;小于跳至PP，继续探索下一个结点
-     CMP [multiC],CH;与棋盘规格比较比较
-     JNB PP;大于跳至PP，继续探索下一个结点
+		;判断坐标是否合法
+		;若不合法
+		MOV CH,dim
+		CMP [multiR],0			;将横坐标与0比较
+		JB PP					;小于0，跳至PP，判断下个点
+		CMP [multiR],CH			;与棋盘规格比较
+		JNB PP					;大于0，跳至PP，判断下个点
+		CMP [multiC],0			;将纵坐标与0比较
+		JB PP					;小于0，跳至PP，判断下个点
+		CMP [multiC],CH			;与棋盘规格比较比较
+		JNB PP					;大于0，跳至PP，判断下个点
 
 
-;合法
-     MOV AL,multiR
-     MOV BL,multiC
-     MOV CL,CH;将棋盘规格至CL
-     MUL CL
-     ADD BX,AX
-     MOV DH,mine[BX]
-     CMP DH,showMine[BX];比较mine中的内容与showMine中同一位置的值，用来检测当前位置是否已经翻开
-     JNE OPT;若不相等，则未翻开，跳至OPT
-     JMP PP;若已翻开，跳至PP，继续探索下一个结点
+		;若合法
+		MOV AL,multiR			;AL<-multiR
+		MOV BL,multiC			;BL<-multiC
+		MOV CL,CH				;将棋盘规格至CL
+		MUL CL					;AX<-AX*CL
+		ADD BX,AX				;BX<-AX+BX
+		MOV DH,mine[BX]			;将雷放入DH
+		CMP DH,showMine[BX]		;比较mine中的内容与showMine中同一位置的值，检测当前位置是否已经翻开
+		JNE OPT					;若未翻开，跳至OPT
+		JMP PP					;若已翻开，跳至PP，判断下个点
 
 OPT:
-     CMP DH,'0';未翻开，比较0与mine当前位置的值
-     JE  MOVE;若相等，则跳至MOVE
-	 CMP DH,'*';判断当前位置是否为雷
-	 JNE MOVE1;不是，跳至MOVE1
-	 JMP PP;若已翻开，跳至PP，继续探索下一个结点
+		CMP DH,'0'				;未翻开，比较0与mine当前位置的值
+		JE  MOVE				;若相等，则跳至MOVE
+		CMP DH,'*'				;判断当前位置是否为雷
+		JNE MOVE1				;不是，跳至MOVE1
+		JMP PP					;若已翻开，跳至PP，判断下个点
 MOVE:
-     MOV showMine[BX],DH;将DH表示的至赋给showMine[BX]表示这个位置已经翻开
-     INC [step]
-     MOV DL,1;循环次数初始化为1
-     JMP PS;跳至PS，跳至当前位置继续搜索
+		MOV showMine[BX],DH		;将DH表示的值赋给showMine[BX]，表示这个位置已经翻开
+		INC [step]				;step++
+		MOV DL,1				;循环次数初始化为1
+		JMP PS					;跳至PS，从当前位置开始继续搜索
 
 MOVE1:
-     MOV showMine[BX],DH;将DH表示的至赋给showMine[BX]表示这个位置已经翻开
-     INC [step]
-	 JMP PP;跳至PP，继续探索下一个结点
-		
+		MOV showMine[BX],DH		;将DH表示的至赋给showMine[BX]表示这个位置已经翻开
+		INC [step]
+		JMP PP					;跳至PP，继续探索下一个结点
 
-
-;判断标记地雷的路子是否胜利
+;判断标记地雷的棋子是否胜利
 markWin:xor ax,ax
 		mov al,nbombs
 		mov bx,flag
@@ -524,6 +503,29 @@ begin:
 initque endp
  
  
+;生成随机数的函数
+rand proc
+   push dx
+   push cx
+   push ax
+   mov bl,lastRand          ;取上次随机数
+   mov ah,0
+   int 1ah                  ; 获取时钟计数cx:dx
+;获得更加随机的数
+   mov bl,dh
+   xor bl,dl
+   mov lastRand,bl
+   xor bl,ch
+   add cx,306ch   
+   xor cx,dx
+R10:
+   add bl,cl
+   loop R10
+   pop ax
+   pop cx
+   pop dx
+   ret
+rand endp                    ;随机函数结束
 
 
 ;输出函数
